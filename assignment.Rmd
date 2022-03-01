@@ -1,7 +1,7 @@
 ---
 title: "Weather and Corn Yield Regressions"
-author: "Nathan Mueller"
-date: "2/25/2022"
+author: "Nathan Mueller | Assignment completed by: George Woolsey"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   html_document:
     toc: true
@@ -196,7 +196,7 @@ model_label <- as.character(as.expression(
     , list(
         a = scales::comma(summary(lm_yeild_year)$coefficients["(Intercept)", "Estimate"], accuracy = 0.1)
         , b = scales::comma(summary(lm_yeild_year)$coefficients[2, "Estimate"], accuracy = 0.1)
-        , r2 = format(summary(lm_yeild_year)$r.squared, digits = 3)
+        , r2 = format(summary(lm_yeild_year)$r.squared, digits = 2)
       )
   )
 ))
@@ -223,43 +223,55 @@ ggplot(winneshiek_yields, aes(x = year_id, y = yield_corn_bu_acre)) +
 
 ### Question 1b
 Fit a quadratic time trend (i.e., year + year^2) and make a plot. Is there evidence for slowing yield growth? 
+
 ```{r, warning=F, message=F, results='hide', fig.width = 8, fig.height = 5}
-# # quadratic trend model for evidence of slowing yield growth
-# lm_yeild_year <- lm(yield_corn_bu_acre ~ year_id , data = winneshiek_yields)
-# 
-# summary(lm_yeild_year)$coefficients["(Intercept)", "Estimate"]
-# # summary(lm_secchi_chla)$adj.r.squared
-# 
-# # label model in ggplot
-# model_label <- as.character(as.expression(
-#   substitute(
-#     italic(y) == a + b %.% italic(x)*","~~italic(r)^2~"="~r2
-#     , list(
-#         a = scales::comma(summary(lm_yeild_year)$coefficients["(Intercept)", "Estimate"], accuracy = 0.1)
-#         , b = scales::comma(summary(lm_yeild_year)$coefficients[2, "Estimate"], accuracy = 0.1)
-#         , r2 = format(summary(lm_yeild_year)$r.squared, digits = 3)
-#       )
-#   )
-# ))
-# # model_label
-# 
-# # plot
-# ggplot(winneshiek_yields, aes(x = year_id, y = yield_corn_bu_acre)) +
-#   geom_point(alpha=0.8, color = "navy", size = 2) + 
-#   geom_smooth(method = 'lm', color = "grey35") +
-#   annotate(geom = "text", label = model_label, parse = TRUE, x = -Inf, y = Inf, hjust = -0.1, vjust = 2) +
-#   scale_x_continuous(breaks = scales::extended_breaks(n=10)) +
-#   labs(
-#     title = "Corn Yield over time in  Winneshiek County, Iowa"
-#   ) +
-#   xlab("Year") +
-#   ylab("Corn Yield (bushels per acre)") +
-#   theme_bw() +
-#   theme(
-#     legend.position="none"
-#   )
+# quadratic trend model for evidence of slowing yield growth
+winneshiek_yields <- winneshiek_yields %>% 
+  mutate(year_id_sq = year_id^2)
+
+# run model
+lm_yeild_year_quad <- lm(yield_corn_bu_acre ~ year_id + year_id_sq, data = winneshiek_yields)
+summary(lm_yeild_year_quad)
+
+# save fitted values
+winneshiek_yields$fitted_quad <- lm_yeild_year_quad$fitted.values
+
+# label model in ggplot
+model_label_quad <- as.character(as.expression(
+  substitute(
+    italic(y) == a + b %.% italic(x) + c %.% ~italic(x)^2~","~~italic(r)^2~"="~r2
+    , list(
+        a = scales::comma(summary(lm_yeild_year_quad)$coefficients["(Intercept)", "Estimate"], accuracy = 0.1)
+        , b = scales::comma(summary(lm_yeild_year_quad)$coefficients[2, "Estimate"], accuracy = 0.2)
+        , c = scales::comma(summary(lm_yeild_year_quad)$coefficients[3, "Estimate"], accuracy = 0.0001)
+        , r2 = format(summary(lm_yeild_year_quad)$r.squared, digits = 2)
+      )
+  )
+))
+# model_label_quad
+
+# plot
+ggplot(winneshiek_yields, aes(x = year_id, y = yield_corn_bu_acre)) +
+  geom_point(alpha=0.8, color = "navy", size = 2) +
+  geom_line(aes(x = year_id, y = fitted_quad), color = "grey35") +
+  annotate(geom = "text", label = model_label_quad, parse = TRUE, x = -Inf, y = Inf, hjust = -0.1, vjust = 2) +
+  scale_x_continuous(breaks = scales::extended_breaks(n=10)) +
+  labs(
+    title = "Corn Yield over time in  Winneshiek County, Iowa"
+    , subtitle = "with fitted values from quadratic time trend (i.e., year + year^2)"
+  ) +
+  xlab("Year") +
+  ylab("Corn Yield (bushels per acre)") +
+  theme_bw() +
+  theme(
+    legend.position="none"
+  )
 
 ```
+
+<span style="color: blue;">Using a quadratic time trend (i.e., year + year^2) shows a significant time trend in the corn yields in  Winneshiek County, Iowa from `r as.character(min(winneshiek_yields$year_id))` to `r as.character(max(winneshiek_yields$year_id))`. Based on a the quadratic model, there is a slightly *increasing* rate of corn yeild over time. The quadratic time trend explains **`r scales::percent(summary(lm_yeild_year_quad)$r.squared)`** of the variation in corn yields in  Winneshiek County, Iowa.</span>
+
+
 
 ### Question 2
 Time Series: Let's analyze the relationship between temperature and yields for the Winneshiek County time series. Use data on yield and summer avg Tmax. Is adding year or Tmax^2 to your model helpful? Make a plot and interpret the results.
