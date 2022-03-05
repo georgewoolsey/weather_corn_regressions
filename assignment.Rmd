@@ -540,8 +540,6 @@ lm_pnl_yield_full <- lm(yield_corn_bu_acre ~ year_id + meantmax + meantmax_sq + 
 # anova test
 anv_m1_m4 <- anova(lm_pnl_yield_year, lm_pnl_yield_full)
 anv_m1_m4
-# (anv_m1_m4[2, "Pr(>F)"]) # best fit model
-
 ```
 
 <span style="color: blue;">Four models were compared above to determine the best fit model for corn yield in the counties of Iowa between `r min(county_yr_full$year_id)` and `r max(county_yr_full$year_id)` using fixed effects (OLS dummy variable) for county:</span>
@@ -721,7 +719,7 @@ mapview(spatial_county_yields
           , zcol = "mean_yield_corn_bu_acre"
           , alpha.regions = 0.7
           , map.types =  "OpenStreetMap"
-          , label = c("county_name")
+          , label = c("namelsad")
           , col.regions = mako(n = 7, direction = -1)
           , at = seq(110, 170, 10)
           , legend = TRUE
@@ -730,7 +728,7 @@ mapview(spatial_county_yields
               spatial_county_yields
               , zcol = c(
                 "county_ansi"
-                , "county_name"
+                , "namelsad"
                 , "mean_yield_corn_bu_acre"
               )
               , row.numbers = FALSE
@@ -759,7 +757,7 @@ mapview(spatial_county_yields
           , zcol = "yield_pct_chg"
           , alpha.regions = 0.7
           , map.types =  "OpenStreetMap"
-          , label = c("county_name")
+          , label = c("namelsad")
           , col.regions = mako(n = 7, direction = -1)
           , at = seq(15, 140, 20)
           , legend = TRUE
@@ -768,8 +766,8 @@ mapview(spatial_county_yields
               spatial_county_yields
               , zcol = c(
                 "county_ansi"
-                , "county_name"
-                , "mean_yield_corn_bu_acre"
+                , "namelsad"
+                , "yield_pct_chg"
               )
               , row.numbers = FALSE
               , feature.id = FALSE
