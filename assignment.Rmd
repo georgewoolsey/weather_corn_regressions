@@ -497,7 +497,7 @@ ggplot(county_yr_2018, aes(x = meantmax, y = yield_corn_bu_acre)) +
 ### Question 4
 Panel: One way to leverage multiple time series is to group all data into what is called a "panel" regression. Convert the county ID code ("countyfp" or "county_ansi") into factor using as.factor, then include this variable in a regression using all counties' yield and summer temperature data. How does the significance of your temperature coefficients (Tmax, Tmax^2) change? Make a plot comparing actual and fitted yields and interpret the results of your model.
 
-```{r, warning=F, message=F, results='hide', fig.width = 8, fig.height = 5}
+```{r, warning=F, message=F, fig.width = 8, fig.height = 5}
 # make a factor of county code
 county_yr_full <- county_yr_full %>% 
   mutate(
@@ -523,7 +523,7 @@ lm_pnl_yield_tmax <- lm(yield_corn_bu_acre ~ meantmax + county_factor, data = co
 # summary(lm_pnl_yield_tmax)
 # anova test
 anv_m1_m2 <- anova(lm_pnl_yield_year, lm_pnl_yield_tmax)
-anv_m1_m2
+# anv_m1_m2
 # (anv_m1_m2[2, "Sum of Sq"]) # decrease in RSS means that model fits worse
 
 # yield on tmax quadratic
@@ -531,7 +531,7 @@ lm_pnl_yield_tmax_quad <- lm(yield_corn_bu_acre ~ meantmax + meantmax_sq + count
 # summary(lm_pnl_yield_tmax_quad)
 # anova test
 anv_m1_m3 <- anova(lm_pnl_yield_year, lm_pnl_yield_tmax_quad)
-anv_m1_m3
+# anv_m1_m3
 # (anv_m1_m3[2, "Sum of Sq"]) # decrease in RSS means that model fits worse
 
 # yield on full model
@@ -540,10 +540,47 @@ lm_pnl_yield_full <- lm(yield_corn_bu_acre ~ year_id + meantmax + meantmax_sq + 
 # anova test
 anv_m1_m4 <- anova(lm_pnl_yield_year, lm_pnl_yield_full)
 anv_m1_m4
-(anv_m1_m4[2, "Pr(>F)"]) # best fit model
+# (anv_m1_m4[2, "Pr(>F)"]) # best fit model
 
 ```
 
+<span style="color: blue;">Four models were compared above to determine the best fit model for corn yield in the counties of Iowa between `r min(county_yr_full$year_id)` and `r max(county_yr_full$year_id)` using fixed effects (OLS dummy variable) for county:</span>
+
+<span style="color: blue;">* simple linear model of corn yield on year (r-squared = **`r scales::percent(summary(lm_pnl_yield_year)$r.squared)`**).</span>
+
+<span style="color: blue;">* simple linear model of corn yield on average maximum summer temperature (r-squared = **`r scales::percent(summary(lm_pnl_yield_tmax)$r.squared)`**).</span>
+
+<span style="color: blue;">* quadratic model of corn yield on average maximum summer temperature and its square (r-squared = **`r scales::percent(summary(lm_pnl_yield_tmax_quad)$r.squared)`**).</span>
+
+<span style="color: blue;">* full model of corn yield on year and average maximum summer temperature and its square (r-squared = **`r scales::percent(summary(lm_pnl_yield_full)$r.squared)`**).</span>
+
+<span style="color: blue;">Using the `anova()` function, fixed effects models were compared to test which model provides the best parsimonious fit of the data. The ANOVA test between the simple linear model of corn yield on year and the full model has a resulting p-value of **`r as.character(round(anv_m1_m4[2, "Pr(>F)"], 6))`**. This result means that the full model significantly improved the estimate over the simple linear model. Thus, we will proceed with the full model.</span>
+
+```{r, warning=F, message=F, results='hide', fig.width = 8, fig.height = 5}
+# save predicted values for best model
+county_yr_full$y_hat <- lm_pnl_yield_full$fitted.values
+
+# car::scatterplot(y_hat~year_id|county_factor, data=county_yr_full, boxplots=FALSE, smooth=TRUE, reg.line=FALSE, legend=FALSE)
+
+# plot y versus y_hat
+#plot
+ggplot(county_yr_full, aes(x = y_hat, y = yield_corn_bu_acre)) +
+  geom_point(alpha=0.7, color = "navy", size = 2) +
+  geom_abline(color = "grey35") +
+  annotate(geom = "text", label = "*line indicates perfect fit", x = -Inf, y = Inf, hjust = -0.05, vjust = 2, color = "grey35") +
+  scale_x_continuous(limits = c(min(county_yr_full$yield_corn_bu_acre)*.97 , max(county_yr_full$yield_corn_bu_acre)*1.02), breaks = scales::extended_breaks(n=10)) +
+  scale_y_continuous(limits = c(min(county_yr_full$yield_corn_bu_acre)*.97 , max(county_yr_full$yield_corn_bu_acre)*1.02), breaks = scales::extended_breaks(n=10)) +
+  labs(
+    title = "Corn Yield versus Predicted Corn Yield for Counties of Iowa"
+    , subtitle = "with predicted values from full model"
+  ) +
+  xlab("Predicted Corn Yield (bushels per acre)") +
+  ylab("Corn Yield (bushels per acre)") +
+  theme_bw() +
+  theme(
+    legend.position="none"
+  )
+```
 
 ### Question 5
 Soybeans: Download NASS data on soybean yields and explore either a time series relationship for a given county, the cross-sectional relationship for a given year, or a panel across all counties and years.
@@ -567,9 +604,47 @@ counties <- us_counties() %>%
 
 # mapview(counties)
 
+#aggregate yields to county
+cornyields_sum <- cornyields %>% 
+  group_by(county_ansi, county_name) %>% 
+  summarize(
+      mean_yield_corn_bu_acre = mean(yield_corn_bu_acre, na.rm=TRUE)
+      , min_year = min(year_id, na.rm=TRUE)
+      , max_year = max(year_id, na.rm=TRUE)
+    )
+  
 # join to yields
-spatial_county_yields <- inner_join(counties, cornyields, by = "county_ansi")
-# mapview(spatial_county_yields %>% filter(year_id == 2001), zcol = "yield_corn_bu_acre")
+spatial_county_yields <- inner_join(counties, cornyields_sum, by = "county_ansi")
+
+# map options
+mapviewOptions(legend.pos = "bottomright", homebutton.pos = "bottomleft")
+
+lbl <- paste0("Avg. Corn Yield (bushels per acre) "
+    , as.character(min(spatial_county_yields$min_year))
+    ,"-"
+    , as.character(max(spatial_county_yields$max_year))
+  )
+# map 
+mapview(spatial_county_yields
+          , zcol = "mean_yield_corn_bu_acre"
+          , alpha.regions = 0.7
+          , map.types =  "OpenStreetMap"
+          , label = c("county_name")
+          , col.regions = mako(n = 6, direction = -1)
+          , at = seq(110, 170, 10)
+          , legend = TRUE
+          , layer.name = lbl
+          , popup = popupTable(
+              spatial_county_yields
+              , zcol = c(
+                "county_ansi"
+                , "county_name"
+                , "mean_yield_corn_bu_acre"
+              )
+              , row.numbers = FALSE
+              , feature.id = FALSE
+            )
+      )
 
 
 ```
