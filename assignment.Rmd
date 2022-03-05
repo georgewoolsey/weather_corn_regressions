@@ -29,10 +29,8 @@ library(sf)
 library(mapview) #Interactive maps
 library(leafpop) #map html popup
 # regression plots
-# library(ggiraph)
-# library(ggiraphExtra)
 # library(car)
-library(gplots)
+# library(gplots)
 
 
 #define vars
@@ -213,7 +211,7 @@ ggplot(winneshiek_yields, aes(x = year_id, y = yield_corn_bu_acre)) +
   annotate(geom = "text", label = model_label, parse = TRUE, x = -Inf, y = Inf, hjust = -0.1, vjust = 2) +
   scale_x_continuous(breaks = scales::extended_breaks(n=10)) +
   labs(
-    title = "Corn Yield over time in  Winneshiek County, Iowa"
+    title = "Corn Yield over time in Winneshiek County, Iowa"
   ) +
   xlab("Year") +
   ylab("Corn Yield (bushels per acre)") +
@@ -264,7 +262,7 @@ ggplot(winneshiek_yields, aes(x = year_id, y = yield_corn_bu_acre)) +
   annotate(geom = "text", label = model_label_quad, parse = TRUE, x = -Inf, y = Inf, hjust = -0.1, vjust = 2) +
   scale_x_continuous(breaks = scales::extended_breaks(n=10)) +
   labs(
-    title = "Corn Yield over time in  Winneshiek County, Iowa"
+    title = "Corn Yield over time in Winneshiek County, Iowa"
     , subtitle = "with fitted values from quadratic time trend (i.e., year + year^2)"
   ) +
   xlab("Year") +
@@ -302,7 +300,7 @@ ggplot(winneshiek_yields_temp, aes(x = meantmax, y = yield_corn_bu_acre)) +
   geom_smooth(method = 'lm', color = "grey35") +
   scale_x_continuous(breaks = scales::extended_breaks(n=10)) +
   labs(
-    title = "Corn Yield versus Mean Summer Max. Temperature in  Winneshiek County, Iowa"
+    title = "Corn Yield versus Mean Summer Max. Temperature in Winneshiek County, Iowa"
   ) +
   xlab("Summer Max. Temp. (°C)") +
   ylab("Corn Yield (bushels per acre)") +
@@ -497,6 +495,8 @@ ggplot(county_yr_2018, aes(x = meantmax, y = yield_corn_bu_acre)) +
 ### Question 4
 Panel: One way to leverage multiple time series is to group all data into what is called a "panel" regression. Convert the county ID code ("countyfp" or "county_ansi") into factor using as.factor, then include this variable in a regression using all counties' yield and summer temperature data. How does the significance of your temperature coefficients (Tmax, Tmax^2) change? Make a plot comparing actual and fitted yields and interpret the results of your model.
 
+#### Develop models
+
 ```{r, warning=F, message=F, fig.width = 8, fig.height = 5}
 # make a factor of county code
 county_yr_full <- county_yr_full %>% 
@@ -556,6 +556,8 @@ anv_m1_m4
 
 <span style="color: blue;">Using the `anova()` function, fixed effects models were compared to test which model provides the best parsimonious fit of the data. The ANOVA test between the simple linear model of corn yield on year and the full model has a resulting p-value of **`r as.character(round(anv_m1_m4[2, "Pr(>F)"], 6))`**. This result means that the full model significantly improved the estimate over the simple linear model. Thus, we will proceed with the full model.</span>
 
+#### Plot best model
+
 ```{r, warning=F, message=F, results='hide', fig.width = 8, fig.height = 5}
 # save predicted values for best model
 county_yr_full$y_hat <- lm_pnl_yield_full$fitted.values
@@ -585,16 +587,98 @@ ggplot(county_yr_full, aes(x = y_hat, y = yield_corn_bu_acre)) +
 ### Question 5
 Soybeans: Download NASS data on soybean yields and explore either a time series relationship for a given county, the cross-sectional relationship for a given year, or a panel across all counties and years.
 
-```{r, warning=F, message=F, results='hide', fig.width = 8, fig.height = 5}
-#code
+#### Load data
 
+```{r, warning=F, message=F, results='hide', fig.width = 8, fig.height = 5}
+# pull data on soybean yield from nassqs_yields
+# parameters to query on 
+nassqs_auth(key = my_qs_api_key)
+params <- list(commodity_desc = "SOYBEANS", year__GE = 1981, state_alpha = "IA")
+# download
+soybeanyieldsall <- nassqs_yields(params)
+
+# clean and filter this dataset
+soybeanyieldsall$county_ansi <- as.numeric(soybeanyieldsall$county_ansi)
+soybeanyieldsall$yield <- as.numeric(soybeanyieldsall$Value)
+
+soybeanyields <- soybeanyieldsall %>% 
+  filter(
+      !is.na(county_ansi) 
+      & !is.na(yield)
+      & util_practice_desc == "ALL UTILIZATION PRACTICES"
+      & prodn_practice_desc == "ALL PRODUCTION PRACTICES"
+    ) %>% 
+  select(county_ansi, county_name, yield, year)
+  
+soybeanyields <- tibble(soybeanyields) %>% 
+  rename(year_id = year
+         , yield_soybean_bu_acre = yield # bushels per acre
+    )
 ```
 
+#### Develop models
+
+```{r, warning=F, message=F, fig.width = 8, fig.height = 5}
+# model 
+# join with winneshiek corn data
+winneshiek_yields <- winneshiek_yields %>% 
+  inner_join(soybeanyields, by=c("year_id"="year_id", "county_ansi"="county_ansi")) %>% 
+  select(-fitted_quad)
+
+# trend model for yield growth
+lm_yield_year <- lm(yield_soybean_bu_acre ~ year_id , data = winneshiek_yields)
+# summary(lm_yield_year)
+
+# quadratic trend model for yield growth
+lm_yield_year_quad <- lm(yield_soybean_bu_acre ~ year_id + year_id_sq, data = winneshiek_yields)
+# summary(lm_yield_year_quad)
+
+#anova
+anv_yr_yrsq <- anova(lm_yield_year, lm_yield_year_quad)
+anv_yr_yrsq
+```
+
+<span style="color: blue;">The `anova()` function was used to compare a simple linear model of soybean yield over time versus a quadratic time trend model to determine which model provides the best parsimonious fit of the data. The ANOVA test had a resulting p-value of **`r as.character(round(anv_yr_yrsq[2, "Pr(>F)"], 2))`**. This result means that the quadratic time trend did not significantly improve the estimate over the simple linear model. Thus, we will proceed with the simple linear model.</span>
+
+#### Plot best model
+
+```{r, warning=F, message=F, results='hide', fig.width = 8, fig.height = 5}
+# label model in ggplot
+model_label <- as.character(as.expression(
+  substitute(
+    italic(y) == a + b %.% italic(year)*","~~italic(r)^2~"="~r2
+    , list(
+        a = scales::comma(summary(lm_yield_year)$coefficients["(Intercept)", "Estimate"], accuracy = 0.1)
+        , b = scales::comma(summary(lm_yield_year)$coefficients[2, "Estimate"], accuracy = 0.1)
+        , r2 = format(summary(lm_yield_year)$r.squared, digits = 2)
+      )
+  )
+))
+# model_label
+
+# plot
+ggplot(winneshiek_yields, aes(x = year_id, y = yield_soybean_bu_acre)) +
+  geom_point(alpha=0.9, color = "cadetblue", size = 2) + 
+  geom_smooth(method = 'lm', color = "grey35") +
+  annotate(geom = "text", label = model_label, parse = TRUE, x = -Inf, y = Inf, hjust = -0.1, vjust = 2) +
+  scale_x_continuous(breaks = scales::extended_breaks(n=10)) +
+  labs(
+    title = "Soybean Yield over time in Winneshiek County, Iowa"
+  ) +
+  xlab("Year") +
+  ylab("Soybean Yield (bushels per acre)") +
+  theme_bw() +
+  theme(
+    legend.position="none"
+  )
+```
+
+<span style="color: blue;">Similar to corn yeild, there is a significant time trend in the soybean yields in  Winneshiek County, Iowa from `r as.character(min(winneshiek_yields$year_id))` to `r as.character(max(winneshiek_yields$year_id))`. Based on a simple linear regression, every additional year results in the soybean yield increasing by **`r round(summary(lm_yield_year)$coefficients[2, "Estimate"], 2)` bu/acre**. The annual time trend explains **`r scales::percent(summary(lm_yield_year)$r.squared)`** of the variation in soybean yields in  Winneshiek County, Iowa.</span>
 
 ### Bonus
 Find a package to make a county map of Iowa displaying some sort of information about yields or weather. Interpret your map.
 
-```{r, warning=F, message=F, results='hide', fig.width = 8, fig.height = 5}
+```{r, warning=F, message=F, fig.width = 8, fig.height = 5}
 # pull in spatial county data to join on count FIPS code
 counties <- us_counties() %>%
   setNames(make.names(names(.), unique = TRUE)) %>% # for some reason the state_name field is duplicated
@@ -607,11 +691,18 @@ counties <- us_counties() %>%
 #aggregate yields to county
 cornyields_sum <- cornyields %>% 
   group_by(county_ansi, county_name) %>% 
+  arrange(county_ansi, year_id) %>% 
   summarize(
       mean_yield_corn_bu_acre = mean(yield_corn_bu_acre, na.rm=TRUE)
       , min_year = min(year_id, na.rm=TRUE)
       , max_year = max(year_id, na.rm=TRUE)
-    )
+      , first_yield_corn_bu_acre = first(yield_corn_bu_acre)
+      , last_yield_corn_bu_acre = last(yield_corn_bu_acre)
+    ) %>% 
+  mutate(
+    yield_pct_chg = ((last_yield_corn_bu_acre - first_yield_corn_bu_acre) / first_yield_corn_bu_acre)*100
+    , n_years = max_year - min_year
+  )
   
 # join to yields
 spatial_county_yields <- inner_join(counties, cornyields_sum, by = "county_ansi")
@@ -624,13 +715,14 @@ lbl <- paste0("Avg. Corn Yield (bushels per acre) "
     ,"-"
     , as.character(max(spatial_county_yields$max_year))
   )
+
 # map 
 mapview(spatial_county_yields
           , zcol = "mean_yield_corn_bu_acre"
           , alpha.regions = 0.7
           , map.types =  "OpenStreetMap"
           , label = c("county_name")
-          , col.regions = mako(n = 6, direction = -1)
+          , col.regions = mako(n = 7, direction = -1)
           , at = seq(110, 170, 10)
           , legend = TRUE
           , layer.name = lbl
@@ -649,12 +741,41 @@ mapview(spatial_county_yields
 
 ```
 
+<span style="color: blue;">In the time period examined, the northern counties in Iowa have had higher average outputs in corn per acre than southern counties. O'Brien County had the highest average yield at 160 bushels per acre while Clarke County had the lowest average at 112 bushels per acre.</span>
 
 ### Bonus #2
 Challenge question - map trends in corn yields by county across Iowa. Interpret your map.
 
-```{r, warning=F, message=F, results='hide', fig.width = 8, fig.height = 5}
-#code
+```{r, warning=F, message=F, fig.width = 8, fig.height = 5}
+# use percent change to map
+lbl2 <- paste0("% Change Corn Yield (bushels per acre) "
+    , as.character(min(spatial_county_yields$min_year))
+    ,"-"
+    , as.character(max(spatial_county_yields$max_year))
+  )
+
+# map 
+mapview(spatial_county_yields
+          , zcol = "yield_pct_chg"
+          , alpha.regions = 0.7
+          , map.types =  "OpenStreetMap"
+          , label = c("county_name")
+          , col.regions = mako(n = 7, direction = -1)
+          , at = seq(15, 140, 20)
+          , legend = TRUE
+          , layer.name = lbl2
+          , popup = popupTable(
+              spatial_county_yields
+              , zcol = c(
+                "county_ansi"
+                , "county_name"
+                , "mean_yield_corn_bu_acre"
+              )
+              , row.numbers = FALSE
+              , feature.id = FALSE
+            )
+      )
 
 ```
 
+<span style="color: blue;">In the time period examined, the far western counties in Iowa have had the most significant increases in corn yield per acre. Crawford County had the highest corn yield increase of 132% while Hamilton County had the lowest corn yield increase of 18%.</span>
